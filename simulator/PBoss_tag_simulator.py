@@ -156,8 +156,9 @@ if __name__ == "__main__":
 
 	sim = UWBWorkspaceSimulator(anchors=anchors, noise_std=0.05)
 
-	# Derive strict workspace boundaries directly from anchor positions
+	# Derive strict X/Y boundaries from anchors, but allow Z to go higher than anchors
 	anchor_coords = np.array(list(sim.anchors.values()))
+	max_z = 4.0  # Ceiling height in meters (higher than anchor Z = 2.5)
 	min_bounds = np.array([
 		anchor_coords[:, 0].min(),
 		anchor_coords[:, 1].min(),
@@ -166,7 +167,7 @@ if __name__ == "__main__":
 	max_bounds = np.array([
 		anchor_coords[:, 0].max(),
 		anchor_coords[:, 1].max(),
-		anchor_coords[:, 2].max(),  # Anchor ceiling height
+		max_z,  # Allows tags to go above anchor height
 	])
 
 	num_tages = 5
@@ -175,7 +176,7 @@ if __name__ == "__main__":
 	max_speed = 0.08  # Max meters per step
 	for i in range(num_tages):
 		tag_id = f"T{i}"
-		# Start each tag strictly inside the anchor bounding box
+		# Start each tag strictly inside X/Y anchor bounds and [0, max_z]
 		tag_positions[tag_id] = np.random.uniform(min_bounds, max_bounds)
 		tag_velocities[tag_id] = np.random.uniform(-max_speed, max_speed, size=3)
 
@@ -202,7 +203,7 @@ if __name__ == "__main__":
 
 	ax.set_xlim(min_bounds[0], max_bounds[0])
 	ax.set_ylim(min_bounds[1], max_bounds[1])
-	ax.set_zlim(min_bounds[2], max_bounds[2] + 0.5)
+	ax.set_zlim(min_bounds[2], max_bounds[2])
 	ax.set_xlabel("X (m)")
 	ax.set_ylabel("Y (m)")
 	ax.set_zlabel("Z (m)")
@@ -225,7 +226,7 @@ if __name__ == "__main__":
 
 				next_pos = tag_positions[tag_id] + tag_velocities[tag_id]
 
-				# Bounce smoothly off anchor boundaries
+				# Bounce smoothly off X/Y anchor boundaries and [0, max_z] vertical bounds
 				for axis in range(3):
 					if next_pos[axis] < min_bounds[axis]:
 						next_pos[axis] = min_bounds[axis]
@@ -247,10 +248,9 @@ if __name__ == "__main__":
 				tag_markers[tag_id].set_data([pos[0]], [pos[1]])
 				tag_markers[tag_id].set_3d_properties([pos[2]])
 
-				# Final output: distances from each tag to all anchors only
+				# Final output: distance array [A0, A1, A2, A3] per tag
 				dist_array = [dists[aid] for aid in sim.anchors]
 				print(f"  [{tag_id}] {dist_array}")
-				time.sleep(0.1)  # Small sleep to avoid overwhelming the console
 
 			# Redraw canvas and pause (replaces time.sleep so GUI stays responsive)
 			plt.pause(1.0 / sample_rate_hz)
