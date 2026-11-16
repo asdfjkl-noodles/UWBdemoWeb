@@ -37,6 +37,17 @@ def init_db():
             distances TEXT
         )
     ''')
+
+    cursor.execute('''
+            CREATE TABLE IF NOT EXISTS floorplans (
+                floor_num INTEGER PRIMARY KEY,
+                svg_data TEXT,
+                min_x REAL,
+                max_x REAL,
+                min_y REAL,
+                max_y REAL
+            )
+        ''')
     
     conn.commit()
     conn.close()
@@ -178,3 +189,56 @@ def get_latest_positions():
             
     conn.close()
     return latest_data
+
+
+
+# Add these functions to the bottom of database.py:
+def save_floorplan(floor_num, svg_data, min_x, max_x, min_y, max_y):
+	conn = sqlite3.connect(DB_NAME)
+	cursor = conn.cursor()
+	cursor.execute('''
+		INSERT INTO floorplans (floor_num, svg_data, min_x, max_x, min_y, max_y)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(floor_num) DO UPDATE SET
+			svg_data = COALESCE(excluded.svg_data, floorplans.svg_data),
+			min_x = excluded.min_x,
+			max_x = excluded.max_x,
+			min_y = excluded.min_y,
+			max_y = excluded.max_y
+	''', (floor_num, svg_data, min_x, max_x, min_y, max_y))
+	conn.commit()
+	conn.close()
+
+def get_floorplan(floor_num):
+	conn = sqlite3.connect(DB_NAME)
+	cursor = conn.cursor()
+	cursor.execute('SELECT svg_data, min_x, max_x, min_y, max_y FROM floorplans WHERE floor_num = ?', (floor_num,))
+	row = cursor.fetchone()
+	conn.close()
+	if row:
+		return {
+			"svg_data": row[0],
+			"min_x": row[1],
+			"max_x": row[2],
+			"min_y": row[3],
+			"max_y": row[4]
+		}
+	return None
+
+def get_all_floorplans():
+	conn = sqlite3.connect(DB_NAME)
+	cursor = conn.cursor()
+	cursor.execute('SELECT floor_num, svg_data, min_x, max_x, min_y, max_y FROM floorplans')
+	rows = cursor.fetchall()
+	conn.close()
+	return {
+		r[0]: {"svg_data": r[1], "min_x": r[2], "max_x": r[3], "min_y": r[4], "max_y": r[5]}
+		for r in rows
+	}
+
+def delete_floorplan(floor_num):
+	conn = sqlite3.connect(DB_NAME)
+	cursor = conn.cursor()
+	cursor.execute('DELETE FROM floorplans WHERE floor_num = ?', (floor_num,))
+	conn.commit()
+	conn.close()

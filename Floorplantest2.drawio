@@ -1,0 +1,31 @@
+<mxfile host="Electron">
+  <diagram name="Page-1" id="V5NrjqirLMRLn6PA80VH">
+    <mxGraphModel dx="2091" dy="1854" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" background="light-dark(#FFFFFF,#FFFFFF)" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="outer-wall" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#00d8ff;strokeWidth=6;" value="" vertex="1">
+          <mxGeometry height="500" width="500" as="geometry" />
+        </mxCell>
+        <mxCell id="zone-a" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#1e272e;fillOpacity=20;strokeColor=#00d8ff;strokeWidth=3;fontColor=#ffffff;fontStyle=1;fontSize=14;" value="ZONE B" vertex="1">
+          <mxGeometry height="220" width="220" as="geometry" />
+        </mxCell>
+        <mxCell id="zone-b" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#1e272e;fillOpacity=20;strokeColor=#00d8ff;strokeWidth=3;fontColor=#ffffff;fontStyle=1;fontSize=14;" value="Meeting Room" vertex="1">
+          <mxGeometry height="220" width="220" x="280" as="geometry" />
+        </mxCell>
+        <mxCell id="main-hall" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#a0a5b8;fontStyle=1;fontSize=16;" value="MAIN OPEN WORKSPACE" vertex="1">
+          <mxGeometry height="40" width="180" x="230" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="i3B4UxLtIwGm_JXgct9L-3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=light-dark(#FFFFFF,#FFFFFF);strokeColor=light-dark(#000000,#000000);strokeWidth=3;" value="" vertex="1">
+          <mxGeometry height="280" width="70" x="430" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="i3B4UxLtIwGm_JXgct9L-4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontColor=light-dark(#000000,#000000);" value="Stair" vertex="1">
+          <mxGeometry height="50" width="60" x="435" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="i3B4UxLtIwGm_JXgct9L-5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#1e272e;fillOpacity=20;strokeColor=#00d8ff;strokeWidth=3;fontColor=#ffffff;fontStyle=1;fontSize=14;" value="ZONE C" vertex="1">
+          <mxGeometry height="220" width="220" y="280" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
