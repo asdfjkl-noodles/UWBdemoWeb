@@ -21,6 +21,7 @@ HTML_TEMPLATE = """
 		button.secondary:hover { background: #636e72; }
 		button.delete { background: #e74c3c; }
 		button.delete:hover { background: #c0392b; }
+		button.small { padding: 4px 10px; font-size: 12px; }
 		.container { display: flex; gap: 20px; flex-wrap: wrap; }
 		.pane { flex: 1; min-width: 350px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 		.section { margin-bottom: 20px; padding: 12px; background: #fafafa; border: 1px solid #eee; border-radius: 6px; }
@@ -127,65 +128,90 @@ HTML_TEMPLATE = """
 		</div>
 	</div>
 
-	<!-- SVG FLOORPLAN CALIBRATOR -->
+	<!-- DYNAMIC FLOORS & SVG FLOORPLAN CALIBRATOR -->
 	<div class="pane" style="margin-top: 20px; max-width: 100%;">
-		<h2>SVG Floorplan Upload & X/Y Plane Calibration</h2>
-		<p style="color: #666; margin-top: -10px;">Upload an .svg file to pop it onto the X/Y anchor plane. Drag any side handle or edit an edge coordinate below.</p>
+		<h2>Building Floors & SVG Floorplan Calibration</h2>
 		
-		<div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
-			<div>
-				<label><strong>Target Floor:</strong></label>
-				<select id="fp-floor-select" onchange="loadFloorplan()">
-					<option value="1">Floor 1 (Ground)</option>
-					<option value="2">Floor 2 (Upper)</option>
-				</select>
+		<!-- Add / Remove Floors & Set Each Floor Height -->
+		<div class="section">
+			<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
+				<h3 style="margin: 0;">1. Manage Building Floors & Heights</h3>
+				<div style="display: flex; align-items: center; gap: 8px;">
+					<label><strong>New Floor Height (m):</strong></label>
+					<input type="number" id="new-floor-height" value="2.0" step="0.1" min="0.5" style="width: 70px;">
+					<button type="button" onclick="addNewFloor()">+ Add Floor</button>
+				</div>
 			</div>
-			<div>
-				<label><strong>Upload .SVG File:</strong></label>
-				<input type="file" id="fp-svg-input" accept=".svg" onchange="handleSvgUpload(event)">
-			</div>
-			<span id="fp-status-msg" style="color: #27ae60; font-weight: bold; font-size: 13px;"></span>
+
+			<table>
+				<thead>
+					<tr>
+						<th>Floor</th>
+						<th>Floor Height (m)</th>
+						<th>Elevation Range (Z)</th>
+						<th>Floorplan SVG Status</th>
+						<th>Actions</th>
+					</tr>
+				</thead>
+				<tbody id="floors-table-body"></tbody>
+			</table>
 		</div>
 
-		<!-- Interactive X/Y Plane Pop-Up Area -->
-		<div class="fp-workspace" id="fp-editor-workspace" style="display: none;">
-			<div class="fp-canvas-box">
-				<div style="color: #00d8ff; font-size: 13px; font-weight: bold; margin-bottom: 8px;">
-					X/Y Coordinate Plane (Drag Cyan Edge Handles or Center Box)
+		<!-- Upload & Calibrate SVG for Selected Floor -->
+		<div class="section">
+			<h3 style="margin-top: 0;">2. Upload & Align Floorplan (.SVG)</h3>
+			<div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+				<div>
+					<label><strong>Select Floor to Edit:</strong></label>
+					<select id="fp-floor-select" onchange="onSelectFloor()"></select>
 				</div>
-				<svg id="xy-editor-svg" viewBox="0 0 500 500">
-					<g id="ed-grid-layer"></g>
-					<g id="ed-svg-layer"></g>
-					<g id="ed-anchors-layer"></g>
-					<g id="ed-handles-layer"></g>
-				</svg>
+				<div>
+					<label><strong>Upload .SVG File:</strong></label>
+					<input type="file" id="fp-svg-input" accept=".svg" onchange="handleSvgUpload(event)">
+				</div>
+				<span id="fp-status-msg" style="color: #27ae60; font-weight: bold; font-size: 13px;"></span>
 			</div>
 
-			<div class="fp-controls-box">
-				<h3 style="margin-top: 0;">Edit Edge Positions (Meters)</h3>
-				<div class="edge-grid">
-					<div>
-						<label>Left Edge (Min X)</label>
-						<input type="number" id="ed-min-x" step="0.1" oninput="onEdgeInput()">
+			<!-- Interactive X/Y Plane Pop-Up Area -->
+			<div class="fp-workspace" id="fp-editor-workspace" style="display: none;">
+				<div class="fp-canvas-box">
+					<div style="color: #00d8ff; font-size: 13px; font-weight: bold; margin-bottom: 8px;">
+						X/Y Coordinate Plane (Drag Cyan Edge Handles or Center Box)
 					</div>
-					<div>
-						<label>Right Edge (Max X)</label>
-						<input type="number" id="ed-max-x" step="0.1" oninput="onEdgeInput()">
-					</div>
-					<div>
-						<label>Bottom Edge (Min Y)</label>
-						<input type="number" id="ed-min-y" step="0.1" oninput="onEdgeInput()">
-					</div>
-					<div>
-						<label>Top Edge (Max Y)</label>
-						<input type="number" id="ed-max-y" step="0.1" oninput="onEdgeInput()">
-					</div>
+					<svg id="xy-editor-svg" viewBox="0 0 500 500">
+						<g id="ed-grid-layer"></g>
+						<g id="ed-svg-layer"></g>
+						<g id="ed-anchors-layer"></g>
+						<g id="ed-handles-layer"></g>
+					</svg>
 				</div>
 
-				<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 15px;">
-					<button type="button" onclick="saveFloorplan()">Save to Database</button>
-					<button type="button" class="secondary" onclick="snapToAnchors()">Snap to Anchors</button>
-					<button type="button" class="delete" onclick="if(confirm('Remove SVG floorplan for this floor?')) deleteFloorplan()">Remove SVG</button>
+				<div class="fp-controls-box">
+					<h3 style="margin-top: 0;">Edit Edge Positions (Meters)</h3>
+					<div class="edge-grid">
+						<div>
+							<label>Left Edge (Min X)</label>
+							<input type="number" id="ed-min-x" step="0.1" oninput="onEdgeInput()">
+						</div>
+						<div>
+							<label>Right Edge (Max X)</label>
+							<input type="number" id="ed-max-x" step="0.1" oninput="onEdgeInput()">
+						</div>
+						<div>
+							<label>Bottom Edge (Min Y)</label>
+							<input type="number" id="ed-min-y" step="0.1" oninput="onEdgeInput()">
+						</div>
+						<div>
+							<label>Top Edge (Max Y)</label>
+							<input type="number" id="ed-max-y" step="0.1" oninput="onEdgeInput()">
+						</div>
+					</div>
+
+					<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 15px;">
+						<button type="button" onclick="saveFloorplan()">Save Position</button>
+						<button type="button" class="secondary" onclick="snapToAnchors()">Snap to Anchors</button>
+						<button type="button" class="delete" onclick="if(confirm('Clear the SVG image for this floor?')) clearFloorSvg()">Clear SVG</button>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -210,8 +236,122 @@ HTML_TEMPLATE = """
 
 	<script>
 		const dbAnchors = {{ anchors | tojson }};
+		let allFloors = [];
 		let currentFp = null;
 		let dragState = null;
+
+		function showStatus(text) {
+			const msg = document.getElementById('fp-status-msg');
+			msg.innerText = text;
+			setTimeout(() => { if (msg.innerText === text) msg.innerText = ''; }, 2500);
+		}
+
+		async function refreshFloors(keepSelectedFloor = null) {
+			const res = await fetch('/api/floors');
+			const data = await res.json();
+			allFloors = data.floors || [];
+
+			const select = document.getElementById('fp-floor-select');
+			const prevVal = keepSelectedFloor || parseInt(select.value, 10) || 1;
+			select.innerHTML = '';
+
+			const tbody = document.getElementById('floors-table-body');
+			tbody.innerHTML = '';
+
+			allFloors.forEach((f, idx) => {
+				const isTop = idx === allFloors.length - 1;
+				const zRange = isTop
+					? `${f.z_min.toFixed(2)}m – ${f.z_max.toFixed(2)}m+`
+					: `${f.z_min.toFixed(2)}m – ${f.z_max.toFixed(2)}m`;
+
+				// Populate Dropdown
+				const opt = document.createElement('option');
+				opt.value = f.floor_num;
+				opt.text = `Floor ${f.floor_num} (${zRange})`;
+				select.appendChild(opt);
+
+				// Populate Floors Table
+				const svgBadge = f.svg_data
+					? `<span style="color:#27ae60; font-weight:bold;">Uploaded (${f.min_x.toFixed(1)}..${f.max_x.toFixed(1)}m)</span>`
+					: `<span style="color:#999;">None</span>`;
+
+				const removeBtn = allFloors.length > 1
+					? `<button type="button" class="delete small" onclick="removeFloor(${f.floor_num})">Remove Floor</button>`
+					: `<span style="font-size:11px; color:#999;">Base Floor</span>`;
+
+				tbody.innerHTML += `
+					<tr>
+						<td><strong>Floor ${f.floor_num}</strong></td>
+						<td>
+							<input type="number" id="fh-${f.floor_num}" value="${f.height}" step="0.1" min="0.5" style="width:65px;">
+							<button type="button" class="small" onclick="updateHeight(${f.floor_num})">Update</button>
+						</td>
+						<td>${zRange}</td>
+						<td>${svgBadge}</td>
+						<td>
+							<button type="button" class="secondary small" onclick="selectFloorForEdit(${f.floor_num})">Edit SVG</button>
+							${removeBtn}
+						</td>
+					</tr>
+				`;
+			});
+
+			if (allFloors.some(f => f.floor_num === prevVal)) {
+				select.value = prevVal;
+			} else if (allFloors.length > 0) {
+				select.value = allFloors[0].floor_num;
+			}
+			onSelectFloor();
+		}
+
+		function selectFloorForEdit(floorNum) {
+			document.getElementById('fp-floor-select').value = floorNum;
+			onSelectFloor();
+		}
+
+		function onSelectFloor() {
+			const floorNum = parseInt(document.getElementById('fp-floor-select').value, 10);
+			currentFp = allFloors.find(f => f.floor_num === floorNum) || null;
+			const workspace = document.getElementById('fp-editor-workspace');
+			if (currentFp && currentFp.svg_data) {
+				workspace.style.display = 'flex';
+				syncInputs();
+				renderEditor();
+			} else {
+				workspace.style.display = 'none';
+			}
+		}
+
+		async function addNewFloor() {
+			const h = parseFloat(document.getElementById('new-floor-height').value) || 2.0;
+			const res = await fetch('/api/floors', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ height: h })
+			});
+			const data = await res.json();
+			showStatus(`Added Floor ${data.floor_num} (${h}m)`);
+			await refreshFloors(data.floor_num);
+		}
+
+		async function updateHeight(floorNum) {
+			const h = parseFloat(document.getElementById(`fh-${floorNum}`).value);
+			if (isNaN(h) || h <= 0) return;
+			await fetch(`/api/floorplan/${floorNum}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ height: h })
+			});
+			showStatus(`Updated Floor ${floorNum} height to ${h}m`);
+			await refreshFloors(floorNum);
+		}
+
+		async function removeFloor(floorNum) {
+			if (!confirm(`Delete Floor ${floorNum} and its floorplan?`)) return;
+			await fetch(`/api/floorplan/${floorNum}`, { method: 'DELETE' });
+			showStatus(`Removed Floor ${floorNum}`);
+			await refreshFloors(1);
+		}
 
 		function getAnchorBounds() {
 			const coords = Object.values(dbAnchors);
@@ -238,7 +378,6 @@ HTML_TEMPLATE = """
 			}
 			const minX = Math.min(...xs), maxX = Math.max(...xs);
 			const minY = Math.min(...ys), maxY = Math.max(...ys);
-			// Add 10% padding around bounds so edges are easy to grab
 			const padX = (maxX - minX) * 0.1 || 0.5;
 			const padY = (maxY - minY) * 0.1 || 0.5;
 			return {
@@ -271,31 +410,18 @@ HTML_TEMPLATE = """
 			};
 		}
 
-		async function loadFloorplan() {
-			const floor = document.getElementById('fp-floor-select').value;
-			const res = await fetch(`/api/floorplan/${floor}`);
-			const data = await res.json();
-			currentFp = data.floorplan;
-			document.getElementById('fp-editor-workspace').style.display = currentFp ? 'flex' : 'none';
-			if (currentFp) {
-				syncInputs();
-				renderEditor();
-			}
-		}
-
 		function handleSvgUpload(evt) {
 			const file = evt.target.files[0];
-			if (!file) return;
+			if (!file || !currentFp) return;
 			const reader = new FileReader();
 			reader.onload = async function(e) {
 				const aBounds = getAnchorBounds();
-				currentFp = {
-					svg_data: e.target.result,
-					min_x: aBounds.minX,
-					max_x: aBounds.maxX,
-					min_y: aBounds.minY,
-					max_y: aBounds.maxY
-				};
+				currentFp.svg_data = e.target.result;
+				currentFp.min_x = aBounds.minX;
+				currentFp.max_x = aBounds.maxX;
+				currentFp.min_y = aBounds.minY;
+				currentFp.max_y = aBounds.maxY;
+
 				document.getElementById('fp-editor-workspace').style.display = 'flex';
 				syncInputs();
 				renderEditor();
@@ -339,29 +465,28 @@ HTML_TEMPLATE = """
 
 		async function saveFloorplan() {
 			if (!currentFp) return;
-			const floor = document.getElementById('fp-floor-select').value;
-			await fetch(`/api/floorplan/${floor}`, {
+			const floorNum = currentFp.floor_num;
+			await fetch(`/api/floorplan/${floorNum}`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(currentFp)
 			});
-			const msg = document.getElementById('fp-status-msg');
-			msg.innerText = `Saved Floor ${floor} layout!`;
-			setTimeout(() => msg.innerText = '', 2500);
+			showStatus(`Saved Floor ${floorNum} layout!`);
+			await refreshFloors(floorNum);
 		}
 
-		async function deleteFloorplan() {
-			const floor = document.getElementById('fp-floor-select').value;
-			await fetch(`/api/floorplan/${floor}`, { method: 'DELETE' });
-			currentFp = null;
-			document.getElementById('fp-editor-workspace').style.display = 'none';
+		async function clearFloorSvg() {
+			if (!currentFp) return;
+			const floorNum = currentFp.floor_num;
+			await fetch(`/api/floorplan/${floorNum}/clear_svg`, { method: 'POST' });
+			showStatus(`Cleared SVG for Floor ${floorNum}`);
+			await refreshFloors(floorNum);
 		}
 
 		function renderEditor() {
-			if (!currentFp) return;
+			if (!currentFp || !currentFp.svg_data) return;
 			const bounds = getPlaneBounds();
 
-			// 1. Draw X/Y Grid
 			let gridHtml = '';
 			for (let i = 0; i <= 5; i++) {
 				const pos = 45 + i * 82;
@@ -374,7 +499,6 @@ HTML_TEMPLATE = """
 			}
 			document.getElementById('ed-grid-layer').innerHTML = gridHtml;
 
-			// 2. Render Uploaded SVG inside bounding box
 			const tl = toSvgPx(currentFp.min_x, currentFp.max_y, bounds);
 			const br = toSvgPx(currentFp.max_x, currentFp.min_y, bounds);
 			const x = Math.min(tl.px, br.px);
@@ -399,7 +523,6 @@ HTML_TEMPLATE = """
 				`;
 			}
 
-			// 3. Render Anchors for Reference
 			let anchorHtml = '';
 			for (const [aid, pos] of Object.entries(dbAnchors)) {
 				const pt = toSvgPx(pos[0], pos[1], bounds);
@@ -410,7 +533,6 @@ HTML_TEMPLATE = """
 			}
 			document.getElementById('ed-anchors-layer').innerHTML = anchorHtml;
 
-			// 4. Render Draggable Side Handles & Move Box
 			const midX = x + w / 2;
 			const midY = y + h / 2;
 			document.getElementById('ed-handles-layer').innerHTML = `
@@ -474,7 +596,7 @@ HTML_TEMPLATE = """
 			}
 		});
 
-		loadFloorplan();
+		refreshFloors();
 	</script>
 </body>
 </html>
@@ -484,24 +606,41 @@ HTML_TEMPLATE = """
 def index():
 	return render_template_string(HTML_TEMPLATE, anchors=database.get_anchors(), tags=database.get_tags(), logs=database.get_recent_logs(limit=15))
 
-@app.route('/api/floorplan/<int:floor_num>', methods=['GET', 'POST', 'DELETE'])
-def manage_floorplan(floor_num):
+@app.route('/api/floors', methods=['GET', 'POST'])
+def manage_floors():
 	if request.method == 'GET':
-		return jsonify({"floorplan": database.get_floorplan(floor_num)})
+		return jsonify({"floors": database.get_all_floors()})
 	elif request.method == 'POST':
-		data = request.json
-		database.save_floorplan(
-			floor_num,
-			data.get('svg_data'),
-			float(data.get('min_x', 0.0)),
-			float(data.get('max_x', 5.0)),
-			float(data.get('min_y', 0.0)),
-			float(data.get('max_y', 5.0))
-		)
+		data = request.json or {}
+		new_num = database.add_floor(float(data.get('height', 2.0)))
+		return jsonify({"status": "added", "floor_num": new_num})
+
+@app.route('/api/floorplan/<int:floor_num>', methods=['POST', 'DELETE'])
+def manage_floorplan(floor_num):
+	if request.method == 'POST':
+		data = request.json or {}
+		# Allow updating height alone or updating SVG + bounds together
+		if 'min_x' not in data and 'height' in data:
+			database.update_floor_height(floor_num, float(data['height']))
+		else:
+			database.save_floorplan(
+				floor_num,
+				data.get('svg_data'),
+				float(data.get('min_x', 0.0)),
+				float(data.get('max_x', 5.0)),
+				float(data.get('min_y', 0.0)),
+				float(data.get('max_y', 5.0)),
+				data.get('height')
+			)
 		return jsonify({"status": "saved"})
 	elif request.method == 'DELETE':
-		database.delete_floorplan(floor_num)
+		database.delete_floor(floor_num)
 		return jsonify({"status": "deleted"})
+
+@app.route('/api/floorplan/<int:floor_num>/clear_svg', methods=['POST'])
+def clear_floorplan_svg_route(floor_num):
+	database.clear_floorplan_svg(floor_num)
+	return jsonify({"status": "cleared"})
 
 @app.route('/modify_anchor', methods=['POST'])
 def modify_anchor():
@@ -510,7 +649,6 @@ def modify_anchor():
 	if action == 'delete':
 		database.delete_anchor(old_id)
 	else:
-		# Fetch current anchor details so we can fall back on them if fields are blank
 		anchors = database.get_anchors()
 		current_pos = anchors.get(old_id, [0.0, 0.0, 0.0])
 
@@ -549,7 +687,6 @@ def modify_tag():
 	if action == 'delete':
 		database.delete_tag(old_id)
 	else:
-		# Fetch current tag details so we can fall back on them if fields are blank
 		tags = database.get_tags()
 		curr = tags.get(old_id, {"tilt_deg": 0.0, "radius": 1.0, "center": [0.0, 0.0, 0.0]})
 
