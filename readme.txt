@@ -16,4 +16,4 @@ then type
 4.open another terminal shell and type 
     cd "D:\Project\UWB main"
 then type
-    python svg_floorplan.py
+    python floorplan.py

@@ -19,9 +19,10 @@ HTML_TEMPLATE = """
         button:hover { background: #2980b9; }
         button.delete { background: #e74c3c; }
         button.delete:hover { background: #c0392b; }
-        .container { display: flex; gap: 20px; }
-        .pane { flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .section { margin-bottom: 20px; padding: 10px; background: #fafafa; border: 1px solid #eee; }
+        .container { display: flex; gap: 20px; flex-wrap: wrap; }
+        .pane { flex: 1; min-width: 350px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .section { margin-bottom: 20px; padding: 10px; background: #fafafa; border: 1px solid #eee; border-radius: 6px; }
+        .hint { font-size: 11px; color: #666; margin-bottom: 8px; display: block; }
     </style>
 </head>
 <body>
@@ -34,6 +35,7 @@ HTML_TEMPLATE = """
             
             <div class="section">
                 <h3>Edit / Rename / Move Existing Anchor</h3>
+                <span class="hint">Leave boxes blank to keep their current values. Only fill what you want to change.</span>
                 <form action="/modify_anchor" method="POST">
                     <label>Select Anchor:</label><br>
                     <select name="old_id" required>
@@ -41,14 +43,14 @@ HTML_TEMPLATE = """
                         <option value="{{ aid }}">{{ aid }}</option>
                         {% endfor %}
                     </select><br><br>
-                    <label>New Name ID:</label><br>
-                    <input type="text" name="new_id" placeholder="e.g. A0" required><br>
-                    <label>X, Y, Z Coordinates:</label><br>
-                    <input type="text" name="x" placeholder="X" size="5" required>
-                    <input type="text" name="y" placeholder="Y" size="5" required>
-                    <input type="text" name="z" placeholder="Z" size="5" required><br><br>
+                    <label>New Name ID (optional):</label><br>
+                    <input type="text" name="new_id" placeholder="Leave blank to keep same"><br>
+                    <label>X, Y, Z Coordinates (optional):</label><br>
+                    <input type="text" name="x" placeholder="X" size="5">
+                    <input type="text" name="y" placeholder="Y" size="5">
+                    <input type="text" name="z" placeholder="Z" size="5"><br><br>
                     <button type="submit">Save Changes</button>
-                    <button type="submit" name="action" value="delete" class="delete">Delete Anchor</button>
+                    <button type="submit" name="action" value="delete" class="delete" onclick="return confirm('Are you sure you want to delete this anchor?');">Delete Anchor</button>
                 </form>
             </div>
 
@@ -70,6 +72,7 @@ HTML_TEMPLATE = """
             
             <div class="section">
                 <h3>Edit / Rename Existing Tag</h3>
+                <span class="hint">Leave boxes blank to keep their current values. Only fill what you want to change.</span>
                 <form action="/modify_tag" method="POST">
                     <label>Select Tag:</label><br>
                     <select name="old_id" required>
@@ -77,17 +80,17 @@ HTML_TEMPLATE = """
                         <option value="{{ tid }}">{{ tid }}</option>
                         {% endfor %}
                     </select><br><br>
-                    <label>New Name ID:</label><br>
-                    <input type="text" name="new_id" placeholder="e.g. T0" required><br>
-                    <label>Tilt (°), Radius:</label><br>
-                    <input type="text" name="tilt" placeholder="Tilt" size="5" required>
-                    <input type="text" name="radius" placeholder="Radius" size="5" required><br>
-                    <label>Center (X, Y, Z):</label><br>
-                    <input type="text" name="cx" placeholder="X" size="4" required>
-                    <input type="text" name="cy" placeholder="Y" size="4" required>
-                    <input type="text" name="cz" placeholder="Z" size="4" required><br><br>
+                    <label>New Name ID (optional):</label><br>
+                    <input type="text" name="new_id" placeholder="Leave blank to keep same"><br>
+                    <label>Tilt (°), Radius (optional):</label><br>
+                    <input type="text" name="tilt" placeholder="Tilt" size="5">
+                    <input type="text" name="radius" placeholder="Radius" size="5"><br>
+                    <label>Center (X, Y, Z) (optional):</label><br>
+                    <input type="text" name="cx" placeholder="X" size="4">
+                    <input type="text" name="cy" placeholder="Y" size="4">
+                    <input type="text" name="cz" placeholder="Z" size="4"><br><br>
                     <button type="submit">Save Changes</button>
-                    <button type="submit" name="action" value="delete" class="delete">Delete Tag</button>
+                    <button type="submit" name="action" value="delete" class="delete" onclick="return confirm('Are you sure you want to delete this tag?');">Delete Tag</button>
                 </form>
             </div>
 
@@ -107,7 +110,7 @@ HTML_TEMPLATE = """
     </div>
 
     <!-- LIVE MOVEMENT LOGS -->
-    <div class="pane" style="margin-top: 20px;">
+    <div class="pane" style="margin-top: 20px; max-width: 100%;">
         <h2>Live Movement Logs</h2>
         <table>
             <tr><th>Step</th><th>Tag</th><th>True Pos (X, Y, Z)</th><th>Calculated Pos (X, Y, Z)</th><th>Distances</th></tr>
@@ -137,9 +140,23 @@ def modify_anchor():
     if action == 'delete':
         database.delete_anchor(old_id)
     else:
-        new_id = request.form.get('new_id')
+        # Fetch current anchor details so we can fall back on them if fields are blank
+        anchors = database.get_anchors()
+        current_pos = anchors.get(old_id, [0.0, 0.0, 0.0])
+
+        new_id = request.form.get('new_id').strip()
+        if not new_id:
+            new_id = old_id
+
         try:
-            x, y, z = float(request.form.get('x')), float(request.form.get('y')), float(request.form.get('z'))
+            x_val = request.form.get('x').strip()
+            y_val = request.form.get('y').strip()
+            z_val = request.form.get('z').strip()
+
+            x = float(x_val) if x_val else current_pos[0]
+            y = float(y_val) if y_val else current_pos[1]
+            z = float(z_val) if z_val else current_pos[2]
+
             database.update_anchor(old_id, new_id, x, y, z)
         except ValueError:
             pass
@@ -162,11 +179,29 @@ def modify_tag():
     if action == 'delete':
         database.delete_tag(old_id)
     else:
-        new_id = request.form.get('new_id')
+        # Fetch current tag details so we can fall back on them if fields are blank
+        tags = database.get_tags()
+        curr = tags.get(old_id, {"tilt_deg": 0.0, "radius": 1.0, "center": [0.0, 0.0, 0.0]})
+
+        new_id = request.form.get('new_id').strip()
+        if not new_id:
+            new_id = old_id
+
         try:
-            tilt = float(request.form.get('tilt'))
-            radius = float(request.form.get('radius'))
-            cx, cy, cz = float(request.form.get('cx')), float(request.form.get('cy')), float(request.form.get('cz'))
+            tilt_val = request.form.get('tilt').strip()
+            radius_val = request.form.get('radius').strip()
+            cx_val = request.form.get('cx').strip()
+            cy_val = request.form.get('cy').strip()
+            cz_val = request.form.get('cz').strip()
+
+            tilt = float(tilt_val) if tilt_val else curr.get("tilt_deg", 0.0)
+            radius = float(radius_val) if radius_val else curr.get("radius", 1.0)
+            
+            curr_center = curr.get("center", [0.0, 0.0, 0.0])
+            cx = float(cx_val) if cx_val else curr_center[0]
+            cy = float(cy_val) if cy_val else curr_center[1]
+            cz = float(cz_val) if cz_val else curr_center[2]
+
             database.update_tag(old_id, new_id, tilt, radius, cx, cy, cz)
         except ValueError:
             pass

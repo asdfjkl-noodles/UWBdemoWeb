@@ -15,7 +15,8 @@ VIEWER_HTML = """
         h1 { color: #00d8ff; margin-bottom: 5px; }
         p { color: #aaa; margin-top: 0; }
         .layout { display: flex; gap: 20px; flex-wrap: wrap; }
-        #plot-container { flex: 2; min-width: 600px; height: 650px; background: #27293d; border-radius: 8px; padding: 10px; }
+        #plot-container { flex: 2; min-width: 600px; height: 650px; background: #27293d; border-radius: 8px; padding: 10px; cursor: grab; }
+        #plot-container:active { cursor: grabbing; }
         #data-panel { flex: 1; min-width: 320px; background: #27293d; border-radius: 8px; padding: 20px; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; font-size: 13px; }
         th, td { padding: 8px; border: 1px solid #3c3f58; text-align: center; }
@@ -23,12 +24,17 @@ VIEWER_HTML = """
         .badge-true { color: #2ecc71; font-weight: bold; }
         .badge-calc { color: #3498db; font-weight: bold; }
         .badge-anchor { color: #e74c3c; font-weight: bold; }
+        .instruction-box { background: #2f3346; border-left: 4px solid #00d8ff; padding: 10px 15px; margin-bottom: 15px; border-radius: 4px; font-size: 13px; }
     </style>
 </head>
 <body>
     <h1>Live 3D UWB Position Visualizer</h1>
-    <p>Real-time rendering from local SQLite database. Edit anchors/tags on port 5000 to see live updates here.</p>
+    <p>Real-time rendering from local SQLite database. Smooth manual rotation enabled.</p>
     
+    <div class="instruction-box">
+        💡 <strong>Tip:</strong> Click & drag to rotate freely. Background updates pause while dragging so your rotation never snaps back!
+    </div>
+
     <div class="layout">
         <!-- 3D Interactive Graph -->
         <div id="plot-container"></div>
@@ -57,6 +63,16 @@ VIEWER_HTML = """
 
     <script>
         let isInitialized = false;
+        let isUserDragging = false;
+        const plotDiv = document.getElementById('plot-container');
+
+        // Track when the user is actively clicking/dragging the 3D plot
+        plotDiv.addEventListener('mousedown', () => { isUserDragging = true; });
+        window.addEventListener('mouseup', () => { isUserDragging = false; });
+        
+        // Touch support for mobile/trackpads
+        plotDiv.addEventListener('touchstart', () => { isUserDragging = true; });
+        window.addEventListener('touchend', () => { isUserDragging = false; });
 
         async function fetchAndUpdate() {
             try {
@@ -64,14 +80,17 @@ VIEWER_HTML = """
                 const data = await response.json();
 
                 updateTables(data.anchors, data.tags);
-                update3DPlot(data.anchors, data.tags);
+
+                // Only update the 3D plot if the user is NOT actively dragging it
+                if (!isUserDragging) {
+                    update3DPlot(data.anchors, data.tags);
+                }
             } catch (err) {
                 console.error("Error fetching live UWB data:", err);
             }
         }
 
         function updateTables(anchors, tags) {
-            // Update Anchors Table
             const anchorBody = document.querySelector('#anchor-table tbody');
             anchorBody.innerHTML = '';
             for (const [id, pos] of Object.entries(anchors)) {
@@ -83,7 +102,6 @@ VIEWER_HTML = """
                 </tr>`;
             }
 
-            // Update Tags Table
             const tagBody = document.querySelector('#tag-table tbody');
             tagBody.innerHTML = '';
             for (const [id, info] of Object.entries(tags)) {
@@ -98,7 +116,6 @@ VIEWER_HTML = """
         }
 
         function update3DPlot(anchors, tags) {
-            // 1. Anchor Trace
             const anchorIds = Object.keys(anchors);
             const anchorTrace = {
                 x: anchorIds.map(id => anchors[id][0]),
@@ -112,7 +129,6 @@ VIEWER_HTML = """
                 marker: { size: 9, color: '#e74c3c', symbol: 'diamond' }
             };
 
-            // 2. True Position Trace
             const tagIds = Object.keys(tags);
             const trueTrace = {
                 x: tagIds.map(id => tags[id].true_pos[0]),
@@ -126,7 +142,6 @@ VIEWER_HTML = """
                 marker: { size: 7, color: '#2ecc71', symbol: 'circle' }
             };
 
-            // 3. Calculated Position Trace
             const calcTrace = {
                 x: tagIds.map(id => tags[id].calc_pos[0]),
                 y: tagIds.map(id => tags[id].calc_pos[1]),
@@ -150,18 +165,18 @@ VIEWER_HTML = """
                     zaxis: { title: 'Z (m)', range: [-1, 5] },
                     aspectmode: 'cube'
                 },
-                uirevision: 'true' // Preserves your camera rotation angle during live updates!
+                uirevision: 'uwb_camera_lock_state'
             };
 
             if (!isInitialized) {
-                Plotly.newPlot('plot-container', [anchorTrace, trueTrace, calcTrace], layout);
+                Plotly.newPlot(plotDiv, [anchorTrace, trueTrace, calcTrace], layout);
                 isInitialized = true;
             } else {
-                Plotly.react('plot-container', [anchorTrace, trueTrace, calcTrace], layout);
+                Plotly.react(plotDiv, [anchorTrace, trueTrace, calcTrace], layout);
             }
         }
 
-        // Refresh every 500ms
+        // Refresh data every 500ms
         setInterval(fetchAndUpdate, 500);
         fetchAndUpdate();
     </script>
