@@ -28,6 +28,16 @@ VIEWER_HTML = """
     </style>
 </head>
 <body>
+    <div style="background: #242736; padding: 10px 20px; display: flex; gap: 15px; align-items: center; border-bottom: 2px solid #32364a; font-family: Arial, sans-serif;">
+        <strong style="color: #00d8ff;">UWB System:</strong>
+        <a href="http://127.0.0.1:5002" style="color: #fff; text-decoration: none; padding: 5px 10px; background: #181a24; border-radius: 4px;">🗺️ Floorplan Map (:5002)</a>
+        <a href="http://127.0.0.1:5001" style="color: #fff; text-decoration: none; padding: 5px 10px; background: #181a24; border-radius: 4px;">🧊 3D Visualizer (:5001)</a>
+        <a href="http://127.0.0.1:5000" style="color: #fff; text-decoration: none; padding: 5px 10px; background: #181a24; border-radius: 4px;">⚙️ Admin Dashboard (:5000)</a>
+    </div>
+
+    <h1>Live 3D UWB Position Visualizer</h1>
+    <p>Real-time rendering from local SQLite database...</p>
+    
     <h1>Live 3D UWB Position Visualizer</h1>
     <p>Real-time rendering from local SQLite database. Smooth manual rotation enabled.</p>
     
