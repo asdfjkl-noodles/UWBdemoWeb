@@ -9,14 +9,20 @@ SVG_MAP_HTML = """
 <head>
 	<title>UWB Multi-Floor SVG Map Viewer</title>
 	<style>
-		body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; background: #181a24; color: #f4f4f9; }
+		body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; background: #181a24; color: #f4f4f9; padding-bottom: 110px; }
 		h1 { color: #00d8ff; margin-bottom: 5px; }
 		p { color: #a0a5b8; margin-top: 0; }
 		.controls {
-			display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+			display: flex; align-items: center; gap: 15px; flex-wrap: wrap;
 			background: #242736; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px;
 			border: 1px solid #32364a;
 		}
+		button {
+			background: #3498db; color: #fff; border: none; padding: 8px 14px;
+			border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 13px;
+		}
+		button:hover { background: #2980b9; }
+		button.active-history { background: #f39c12; color: #12141c; }
 		select {
 			padding: 8px 12px; border-radius: 5px; border: 1px solid #454a66;
 			background: #181a24; color: #fff; font-size: 14px; font-weight: bold;
@@ -43,26 +49,41 @@ SVG_MAP_HTML = """
 		}
 		.legend { display: flex; justify-content: center; gap: 20px; margin-top: 12px; font-size: 13px; }
 		.dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+
+		/* Bottom Fixed History Scrubber Bar */
+		.history-bar {
+			position: fixed; bottom: 0; left: 0; right: 0;
+			background: #181a24; border-top: 2px solid #f39c12;
+			padding: 12px 25px; display: none; flex-direction: column; gap: 8px;
+			box-shadow: 0 -4px 12px rgba(0,0,0,0.4); z-index: 1000;
+		}
+		.history-bar-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; font-size: 13px; }
+		.history-slider { width: 100%; cursor: pointer; accent-color: #f39c12; }
 	</style>
 </head>
 <body>
-	<div style="background: #242736; padding: 10px 20px; display: flex; gap: 15px; align-items: center; border-bottom: 2px solid #32364a; font-family: Arial, sans-serif;">
-        <strong style="color: #00d8ff;">UWB System:</strong>
-        <a href="http://127.0.0.1:5002" style="color: #fff; text-decoration: none; padding: 5px 10px; background: #181a24; border-radius: 4px;">🗺️ Floorplan Map (:5002)</a>
-        <a href="http://127.0.0.1:5001" style="color: #fff; text-decoration: none; padding: 5px 10px; background: #181a24; border-radius: 4px;">🧊 3D Visualizer (:5001)</a>
-        <a href="http://127.0.0.1:5000" style="color: #fff; text-decoration: none; padding: 5px 10px; background: #181a24; border-radius: 4px;">⚙️ Admin Dashboard (:5000)</a>
-    </div>
+	<div style="background: #242736; padding: 10px 20px; display: flex; gap: 15px; align-items: center; border-bottom: 2px solid #32364a; font-family: Arial, sans-serif; margin-bottom: 15px;">
+		<strong style="color: #00d8ff;">UWB System:</strong>
+		<a href="http://127.0.0.1:5002" style="color: #fff; text-decoration: none; padding: 5px 10px; background: #181a24; border-radius: 4px;">🗺️ Floorplan Map (:5002)</a>
+		<a href="http://127.0.0.1:5001" style="color: #fff; text-decoration: none; padding: 5px 10px; background: #181a24; border-radius: 4px;">🧊 3D Visualizer (:5001)</a>
+		<a href="http://127.0.0.1:5000" style="color: #fff; text-decoration: none; padding: 5px 10px; background: #181a24; border-radius: 4px;">⚙️ Admin Dashboard (:5000)</a>
+	</div>
 
-    <h1>Live 3D UWB Position Visualizer</h1>
-    <p>Real-time rendering from local SQLite database...</p>
-	
 	<h1>UWB Multi-Floor SVG Map</h1>
-	<p>Live 2D floorplan projection. Add/remove floors, set floor heights, and upload SVGs on port 5000.</p>
+	<p>Live 2D floorplan projection & {{ history_limit }}-minute tag playback.</p>
 
 	<div class="controls">
 		<div>
 			<label for="floor-select"><strong>Select View Floor:</strong></label>
 			<select id="floor-select" onchange="renderAll()"></select>
+		</div>
+
+		<button id="toggle-history-btn" onclick="toggleHistoryMode()">⏱️ History Mode: OFF</button>
+
+		<div id="history-tag-group" style="display: none; align-items: center; gap: 10px;">
+			<label for="history-tag-select"><strong>Select Tag:</strong></label>
+			<select id="history-tag-select" onchange="loadTagHistory()"></select>
+			<button onclick="loadTagHistory()" style="background: #2ecc71; color: #12141c;">↻ Refresh</button>
 		</div>
 
 		<div id="floor-status" style="margin-left: auto; font-size: 14px; color: #00d8ff; font-weight: bold;">
@@ -86,7 +107,7 @@ SVG_MAP_HTML = """
 		</div>
 
 		<div class="sidebar">
-			<h3 style="margin-top: 0; color: #00d8ff;">Live Tag Floor Status</h3>
+			<h3 id="sidebar-tag-title" style="margin-top: 0; color: #00d8ff;">Live Tag Floor Status</h3>
 			<table>
 				<thead>
 					<tr><th>Tag</th><th>Calc (X, Y)</th><th>Z (m)</th><th>Current Floor</th></tr>
@@ -104,15 +125,121 @@ SVG_MAP_HTML = """
 		</div>
 	</div>
 
+	<!-- Bottom Scrollable History Bar -->
+	<div class="history-bar" id="history-bar">
+		<div class="history-bar-top">
+			<div>
+				<strong style="color: #f39c12;">📜 Playback Time:</strong>
+				<span id="hist-display-time" style="font-size: 15px; font-weight: bold; color: #fff; margin-left: 6px;">--:--:--</span>
+				<span id="hist-step-info" style="color: #a0a5b8; margin-left: 10px;">(Point 0 / 0)</span>
+			</div>
+			<div style="display: flex; align-items: center; gap: 10px;">
+				<label for="time-format-select"><strong>Time Display:</strong></label>
+				<select id="time-format-select" onchange="renderAll()">
+					<option value="clock">Clock (HH:MM:SS)</option>
+					<option value="relative">Relative (-MM:SS ago)</option>
+					<option value="both">Clock + Relative</option>
+				</select>
+			</div>
+		</div>
+		<input type="range" id="history-slider" class="history-slider" min="0" max="0" value="0" oninput="onScrubHistory()">
+	</div>
+
 	<script>
 		let latestPayload = { anchors: {}, tags: {}, floors: [] };
+		let historyMode = false;
+		let historyRecords = [];
+
+		function formatHistoryTimestamp(rec, latestTs) {
+			const mode = document.getElementById('time-format-select').value;
+			const diffSec = Math.max(0, Math.round(latestTs - rec.timestamp));
+			const mins = String(Math.floor(diffSec / 60)).padStart(2, '0');
+			const secs = String(diffSec % 60).padStart(2, '0');
+			const relStr = diffSec === 0 ? "Latest" : `-${mins}:${secs} ago`;
+
+			if (mode === 'relative') return relStr;
+			if (mode === 'both') return `${rec.display_time} (${relStr})`;
+			return rec.display_time;
+		}
+
+		function syncTagDropdown(tagIds) {
+			const select = document.getElementById('history-tag-select');
+			const prev = select.value;
+			const sig = tagIds.join('|');
+			if (select.dataset.sig !== sig) {
+				select.dataset.sig = sig;
+				select.innerHTML = '';
+				tagIds.forEach(tid => {
+					const opt = document.createElement('option');
+					opt.value = tid;
+					opt.text = tid;
+					select.appendChild(opt);
+				});
+				if (tagIds.includes(prev)) select.value = prev;
+			}
+		}
+
+		async function toggleHistoryMode() {
+			historyMode = !historyMode;
+			const btn = document.getElementById('toggle-history-btn');
+			const tagGroup = document.getElementById('history-tag-group');
+			const bar = document.getElementById('history-bar');
+
+			if (historyMode) {
+				btn.innerText = "⏱️ History Mode: ON";
+				btn.classList.add('active-history');
+				tagGroup.style.display = 'flex';
+				bar.style.display = 'flex';
+				document.getElementById('sidebar-tag-title').innerText = "Historical Tag Status";
+				await loadTagHistory();
+			} else {
+				btn.innerText = "⏱️ History Mode: OFF";
+				btn.classList.remove('active-history');
+				tagGroup.style.display = 'none';
+				bar.style.display = 'none';
+				document.getElementById('sidebar-tag-title').innerText = "Live Tag Floor Status";
+				renderAll();
+			}
+		}
+
+		async function loadTagHistory() {
+			const tid = document.getElementById('history-tag-select').value;
+			if (!tid) return;
+			try {
+				const res = await fetch(`/api/history/${encodeURIComponent(tid)}`);
+				const data = await res.json();
+				historyRecords = data.history || [];
+				const slider = document.getElementById('history-slider');
+				slider.min = 0;
+				slider.max = Math.max(0, historyRecords.length - 1);
+				slider.value = slider.max;
+				onScrubHistory();
+			} catch (err) {
+				console.error("Failed to fetch tag history:", err);
+			}
+		}
+
+		function onScrubHistory() {
+			if (!historyMode || historyRecords.length === 0) {
+				renderAll();
+				return;
+			}
+			const idx = parseInt(document.getElementById('history-slider').value, 10) || 0;
+			const rec = historyRecords[idx];
+			const tagFloor = getTagFloorNum(rec.calc_pos[2], latestPayload.floors || []);
+			document.getElementById('floor-select').value = tagFloor;
+			renderAll();
+		}
 
 		async function fetchLiveData() {
 			try {
 				const res = await fetch('/api/live_data');
 				latestPayload = await res.json();
 				syncFloorDropdown(latestPayload.floors || []);
-				renderAll();
+				syncTagDropdown(Object.keys(latestPayload.tags || {}));
+				if (!historyMode) {
+					renderAll();
+				}
 			} catch (err) {
 				console.error("Failed to fetch live UWB data:", err);
 			}
@@ -149,7 +276,6 @@ SVG_MAP_HTML = """
 			for (let i = 0; i < floors.length; i++) {
 				const f = floors[i];
 				if (i === floors.length - 1) {
-					// Top floor captures everything above its z_min
 					if (z >= f.z_min) return f.floor_num;
 				} else {
 					if (z >= f.z_min && z < f.z_max) return f.floor_num;
@@ -245,7 +371,9 @@ SVG_MAP_HTML = """
 				? `Z &ge; ${floorObj.z_min.toFixed(2)} m (Height: ${floorObj.height.toFixed(1)} m)`
 				: `${floorObj.z_min.toFixed(2)} m &le; Z &lt; ${floorObj.z_max.toFixed(2)} m (Height: ${floorObj.height.toFixed(1)} m)`;
 
-			document.getElementById('floor-status').innerText = `Viewing: Floor ${floorObj.floor_num} (Height ${floorObj.height.toFixed(1)}m)`;
+			document.getElementById('floor-status').innerText = historyMode
+				? `History Mode • Floor ${floorObj.floor_num}`
+				: `Viewing: Floor ${floorObj.floor_num} (Height ${floorObj.height.toFixed(1)}m)`;
 			document.getElementById('map-title').innerHTML = `Floor ${floorObj.floor_num} Plan (${rangeLabel})`;
 
 			const bounds = getWorkspaceBounds(anchors, floorObj);
@@ -275,12 +403,38 @@ SVG_MAP_HTML = """
 			anchorsLayer.innerHTML = anchorSvg;
 			anchorTable.innerHTML = anchorRows;
 
+			// Determine active tags dictionary (Historical single tag vs Live all tags)
+			let displayTags = tags;
+
+			if (historyMode) {
+				const tid = document.getElementById('history-tag-select').value;
+				const slider = document.getElementById('history-slider');
+				const idx = parseInt(slider.value, 10) || 0;
+
+				if (historyRecords.length === 0) {
+					document.getElementById('hist-display-time').innerText = "No history data";
+					document.getElementById('hist-step-info').innerText = "(0 records)";
+					displayTags = {};
+				} else {
+					const rec = historyRecords[idx];
+					const firstTs = historyRecords[0].timestamp;
+					const latestTs = historyRecords[historyRecords.length - 1].timestamp;
+					const spanSec = Math.max(0, Math.round(latestTs - firstTs));
+					const spanMins = String(Math.floor(spanSec / 60)).padStart(2, '0');
+					const spanRemSecs = String(spanSec % 60).padStart(2, '0');
+
+					document.getElementById('hist-display-time').innerText = formatHistoryTimestamp(rec, latestTs);
+					document.getElementById('hist-step-info').innerText = `(Point ${idx + 1} / ${historyRecords.length} • Recorded: ${spanMins}:${spanRemSecs} / {{ history_limit }}:00)`;
+					displayTags = { [tid]: rec };
+				}
+			}
+
 			const tagsLayer = document.getElementById('tags-layer');
 			const tagTable = document.getElementById('tag-status-body');
 			let tagSvg = '';
 			let tagRows = '';
 
-			for (const [tid, info] of Object.entries(tags)) {
+			for (const [tid, info] of Object.entries(displayTags)) {
 				const calc = info.calc_pos;
 				const tru = info.true_pos;
 				const tagFloor = getTagFloorNum(calc[2], floors);
@@ -319,7 +473,7 @@ SVG_MAP_HTML = """
 
 @app.route('/')
 def index():
-	return render_template_string(SVG_MAP_HTML)
+	return render_template_string(SVG_MAP_HTML, history_limit=database.HISTORY_LIMIT_MINUTES)
 
 @app.route('/api/live_data')
 def live_data():
@@ -327,6 +481,14 @@ def live_data():
 		"anchors": database.get_anchors(),
 		"tags": database.get_latest_positions(),
 		"floors": database.get_all_floors()
+	})
+
+@app.route('/api/history/<tag_id>')
+def tag_history(tag_id):
+	return jsonify({
+		"tag_id": tag_id,
+		"limit_minutes": database.HISTORY_LIMIT_MINUTES,
+		"history": database.get_tag_history(tag_id)
 	})
 
 if __name__ == '__main__':

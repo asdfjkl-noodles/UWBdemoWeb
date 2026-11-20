@@ -1,7 +1,15 @@
 import sqlite3
 import json
+import time
+from datetime import datetime
 
 DB_NAME = "uwb_system.db"
+
+# ==========================================
+# EDITABLE HISTORY CONFIGURATION
+# ==========================================
+HISTORY_LIMIT_MINUTES = 30          # Maximum history retention & playback window (minutes)
+DISPLAY_TIME_FORMAT = "%H:%M:%S"    # Editable display format (e.g., "%H:%M:%S" or "%I:%M:%S %p")
 
 def init_db():
 	conn = sqlite3.connect(DB_NAME)
@@ -30,6 +38,7 @@ def init_db():
 	cursor.execute('''
 		CREATE TABLE IF NOT EXISTS movement_logs (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			timestamp REAL,
 			step INTEGER,
 			tag_id TEXT,
 			true_x REAL, true_y REAL, true_z REAL,
@@ -37,6 +46,15 @@ def init_db():
 			distances TEXT
 		)
 	''')
+
+	# Migrate older movement_logs table if 'timestamp' column does not exist yet
+	cursor.execute("PRAGMA table_info(movement_logs)")
+	log_cols = [row[1] for row in cursor.fetchall()]
+	if 'timestamp' not in log_cols:
+		cursor.execute('ALTER TABLE movement_logs ADD COLUMN timestamp REAL')
+		cursor.execute('UPDATE movement_logs SET timestamp = ? WHERE timestamp IS NULL', (time.time(),))
+
+	cursor.execute('CREATE INDEX IF NOT EXISTS idx_logs_tag_time ON movement_logs (tag_id, timestamp)')
 
 	cursor.execute('''
 		CREATE TABLE IF NOT EXISTS floorplans (
@@ -157,15 +175,19 @@ def delete_tag(tid):
 	conn.commit()
 	conn.close()
 
-# --- Logging ---
+# --- Logging & History ---
 def log_step(step, tag_id, true_pos, calc_pos, distances):
+	now = time.time()
+	cutoff = now - (HISTORY_LIMIT_MINUTES * 60)
 	conn = sqlite3.connect(DB_NAME)
 	cursor = conn.cursor()
 	cursor.execute('''
-		INSERT INTO movement_logs (step, tag_id, true_x, true_y, true_z, calc_x, calc_y, calc_z, distances)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	''', (step, tag_id, true_pos[0], true_pos[1], true_pos[2], 
+		INSERT INTO movement_logs (timestamp, step, tag_id, true_x, true_y, true_z, calc_x, calc_y, calc_z, distances)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	''', (now, step, tag_id, true_pos[0], true_pos[1], true_pos[2], 
 		  calc_pos[0], calc_pos[1], calc_pos[2], json.dumps(distances)))
+	# Keep database trimmed to HISTORY_LIMIT_MINUTES
+	cursor.execute('DELETE FROM movement_logs WHERE timestamp < ?', (cutoff,))
 	conn.commit()
 	conn.close()
 
@@ -176,6 +198,32 @@ def get_recent_logs(limit=25):
 	rows = cursor.fetchall()
 	conn.close()
 	return rows
+
+def get_tag_history(tag_id, limit_minutes=None):
+	mins = float(limit_minutes) if limit_minutes is not None else HISTORY_LIMIT_MINUTES
+	cutoff = time.time() - (mins * 60)
+	conn = sqlite3.connect(DB_NAME)
+	cursor = conn.cursor()
+	cursor.execute('''
+		SELECT timestamp, step, true_x, true_y, true_z, calc_x, calc_y, calc_z
+		FROM movement_logs
+		WHERE tag_id = ? AND timestamp >= ?
+		ORDER BY id ASC
+	''', (tag_id, cutoff))
+	rows = cursor.fetchall()
+	conn.close()
+
+	history = []
+	for r in rows:
+		ts = r[0] if r[0] is not None else time.time()
+		history.append({
+			"timestamp": ts,
+			"display_time": datetime.fromtimestamp(ts).strftime(DISPLAY_TIME_FORMAT),
+			"step": r[1],
+			"true_pos": [r[2], r[3], r[4]],
+			"calc_pos": [r[5], r[6], r[7]]
+		})
+	return history
 
 def get_latest_positions():
 	conn = sqlite3.connect(DB_NAME)
